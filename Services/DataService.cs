@@ -69,8 +69,8 @@ namespace BlogProject.Services
             //Step 1: Creates a new instance of Bloguser
             var adminUser = new BlogUser()
             {
-                Email = "Simonvdfliert@hotmail.com",
-                UserName = "Simonvdfliert",
+                Email = "Simonvandefliert@gmail.com",
+                UserName = "Simonvandefliert@gmail.com",
                 FirstName = "Simon",
                 LastName = "van de Fliert",
                 PhoneNumber = "(800) 555-1212",
@@ -87,7 +87,7 @@ namespace BlogProject.Services
             var modUser = new BlogUser()
             {
                 Email = "Alexvdfliert@hotmail.com",
-                UserName = "Alexvdfliert",
+                UserName = "Alexvdfliert@hotmail.com",
                 FirstName = "Alex",
                 LastName = "van de Fliert",
                 PhoneNumber = "(800) 555-2323",
