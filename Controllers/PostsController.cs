@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using BlogProject.Data;
 using BlogProject.Models;
 using BlogProject.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 
 namespace BlogProject.Controllers
 {
@@ -15,10 +17,18 @@ namespace BlogProject.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ISlugService _slugService;
-        public PostsController(ApplicationDbContext context, ISlugService slugService)
+        private readonly IImageService _imageservice;
+        private readonly UserManager<BlogUser> _userManager;
+
+        public PostsController(ApplicationDbContext context, 
+                                ISlugService slugService, 
+                                IImageService imageservice, 
+                                UserManager<BlogUser> userManager)
         {
             _context = context;
             _slugService = slugService;
+            _imageservice = imageservice;
+            _userManager = userManager;
         }
 
         // GET: Posts
@@ -39,6 +49,7 @@ namespace BlogProject.Controllers
             var post = await _context.Posts
                 .Include(p => p.Blog)
                 .Include(p => p.BlogUser)
+                .Include(p => p.Tags)
                 .FirstOrDefaultAsync(m => m.Id == id);
             if (post == null)
             {
@@ -66,6 +77,12 @@ namespace BlogProject.Controllers
             if (ModelState.IsValid)
             {
                 post.Created = DateTime.Now;
+                var authorId = _userManager.GetUserId(User);
+                post.BlogUserId = authorId;
+
+                // Use the _imageservice tp stpre the incoming user specified image
+                post.ImageData = await _imageservice.EncodeImageAsync(post.Image);
+                post.ContentType = _imageservice.ContentType(post.Image);
 
                 //Create the slug and determine if it is unique
                 var slug = _slugService.UrlFriendly(post.Title);
@@ -80,6 +97,20 @@ namespace BlogProject.Controllers
                 post.Slug = slug;
 
                 _context.Add(post);
+                await _context.SaveChangesAsync();
+
+                // How do I loop over the incoming list of string
+                foreach(var tagText in tagValues)
+                {
+                    _context.Add(new Tag()
+                    {
+                        PostId = post.Id,
+                        BlogUserId = authorId,
+                        Text = tagText
+
+                    });
+                }
+
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
@@ -109,7 +140,7 @@ namespace BlogProject.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,BlogId,Title,Abstract,Content,ReadyStatus,Image")] Post post)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,BlogId,Title,Abstract,Content,ReadyStatus")] Post post, IFormFile newImage)
         {
             if (id != post.Id)
             {
@@ -120,8 +151,19 @@ namespace BlogProject.Controllers
             {
                 try
                 {
-                    post.Updated = DateTime.Now;
-                    _context.Update(post);
+                    var newPost = await _context.Posts.FindAsync(post.Id);
+
+                    newPost.Updated = DateTime.Now;
+                    newPost.Title = post.Title;
+                    newPost.Abstract = post.Abstract;
+                    newPost.Content = post.Content;
+                    newPost.ReadyStatus = post.ReadyStatus;
+
+                    if (newImage is not null)
+                    {
+                        newPost.ImageData = await _imageservice.EncodeImageAsync(newImage);
+                        newPost.ContentType = _imageservice.ContentType(newImage);
+                    }
                     await _context.SaveChangesAsync();
                 }
                 catch (DbUpdateConcurrencyException)

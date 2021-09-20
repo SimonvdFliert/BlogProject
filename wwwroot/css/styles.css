@@ -75,6 +75,14 @@
   }
 }
 
+#TagList {
+    min-width: 100%;
+}
+
+option{
+    font-weight: bolder;
+}
+
 body {
   margin: 0;
   font-family: var(--bs-body-font-family);
