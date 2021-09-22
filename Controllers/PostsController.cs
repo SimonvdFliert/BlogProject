@@ -39,9 +39,9 @@ namespace BlogProject.Controllers
         }
 
         // GET: Posts/Details/5
-        public async Task<IActionResult> Details(int? id)
+        public async Task<IActionResult> Details(string slug)
         {
-            if (id == null)
+            if (string.IsNullOrEmpty(slug))
             {
                 return NotFound();
             }
@@ -50,7 +50,7 @@ namespace BlogProject.Controllers
                 .Include(p => p.Blog)
                 .Include(p => p.BlogUser)
                 .Include(p => p.Tags)
-                .FirstOrDefaultAsync(m => m.Id == id);
+                .FirstOrDefaultAsync(m => m.Slug == slug);
             if (post == null)
             {
                 return NotFound();
@@ -86,13 +86,43 @@ namespace BlogProject.Controllers
 
                 //Create the slug and determine if it is unique
                 var slug = _slugService.UrlFriendly(post.Title);
-                if (!_slugService.isUnique(slug))
+
+                //Create a variable to store whether an error has occurred
+                var validationError = false;
+
+                if (string.IsNullOrEmpty(slug))
                 {
-                    //Add a Model state error and return the user back to the Create view
+                    validationError = true;
+                    ModelState.AddModelError("", "The Title you provided cannot be used as it results in an empty slug.");
+                }
+
+                //Detect incoming duplicate Slugs
+                else if (!_slugService.isUnique(slug))
+                {
+                    validationError = true;
                     ModelState.AddModelError("Title", "The Title you provided cannot be used as it results in a duplicate slug.");
+                }
+
+                else if (slug.Contains("test"))
+                {
+                    validationError = true;
+                    ModelState.AddModelError("", "Uh-oh are you testing again??");
+                    ModelState.AddModelError("Title", "The Title cannot contain the word test");
+                }
+
+                if (validationError)
+                {
                     ViewData["TagValues"] = string.Join(",", tagValues);
                     return View(post);
                 }
+
+
+                //else
+                //{
+                //    // Allows to also send back the tagvalues back to the view
+                //    ViewData["TagValues"] = string.Join(",", tagValues);
+                //    return View(post);
+                //}
 
                 post.Slug = slug;
 
@@ -159,6 +189,22 @@ namespace BlogProject.Controllers
                     newPost.Abstract = post.Abstract;
                     newPost.Content = post.Content;
                     newPost.ReadyStatus = post.ReadyStatus;
+
+                    var newSlug = _slugService.UrlFriendly(post.Title);
+                    if(newSlug != newPost.Slug)
+                    {
+                        if (_slugService.isUnique(newSlug))
+                        {
+                            newPost.Title = post.Title;
+                            newPost.Slug = newSlug;
+                        }
+                        else
+                        {
+                            ModelState.AddModelError("Title", "this Title cannot be used as it results in a duplicate slug.");
+                            ViewData["TagValues"] = string.Join(",", tagValues);
+                            return View(post);
+                        }
+                    }
 
                     if (newImage is not null)
                     {
