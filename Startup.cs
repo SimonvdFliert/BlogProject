@@ -86,7 +86,7 @@ namespace BlogProject
                 endpoints.MapControllerRoute(
                     name: "SlugRoute",
                     pattern: "Posts/UrlFriendly/{slug}",
-                    defaults: new { controller = "Posts", action = "Details" });
+                    defaults: new { controller = "Posts", action = "Index" });
                     
 
 
