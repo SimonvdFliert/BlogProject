@@ -7,18 +7,26 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using BlogProject.Data;
 using BlogProject.Models;
+using Microsoft.AspNetCore.Identity;
+using System.Reflection;
 
 namespace BlogProject.Controllers
 {
     public class CommentsController : Controller
     {
         private readonly ApplicationDbContext _context;
-
-        public CommentsController(ApplicationDbContext context)
+        private readonly UserManager<BlogUser> _userManager;
+        public CommentsController(ApplicationDbContext context, UserManager<BlogUser> userManager)
         {
             _context = context;
+            _userManager = userManager;
         }
 
+        public async Task<IActionResult> Index()
+        {
+            var originalComments = await _context.Comments.ToListAsync();
+            return View("Index", originalComments);
+        }
 
         // Get: Comments
         public async Task<IActionResult> OriginalIndex()
@@ -61,12 +69,16 @@ namespace BlogProject.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,PostId,BlogUserId,ModeratorId,Body,Created,Updated,Moderated,Deleted,ModeratedBody,ModerationType")] Comment comment)
+        public async Task<IActionResult> Create([Bind("PostId,Body")] Comment comment)
         {
             if (ModelState.IsValid)
             {
+                comment.BlogUserId = _userManager.GetUserId(User);
+                comment.Created = DateTime.Now;
+
                 _context.Add(comment);
                 await _context.SaveChangesAsync();
+                //var test = Index;
                 return RedirectToAction(nameof(Index));
             }
 
@@ -97,7 +109,7 @@ namespace BlogProject.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,PostId,BlogUserId,ModeratorId,Body,Created,Updated,Moderated,Deleted,ModeratedBody,ModerationType")] Comment comment)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Body")] Comment comment)
         {
             if (id != comment.Id)
             {
@@ -106,9 +118,12 @@ namespace BlogProject.Controllers
 
             if (ModelState.IsValid)
             {
+                var newComment = await _context.Comments.Include(c => c.Post).FirstOrDefaultAsync(c => c.Id == comment.Id);
                 try
                 {
-                    _context.Update(comment);
+                    newComment.Body = comment.Body;
+                    newComment.Updated = DateTime.Now;
+
                     await _context.SaveChangesAsync();
                 }
                 catch (DbUpdateConcurrencyException)
@@ -122,7 +137,7 @@ namespace BlogProject.Controllers
                         throw;
                     }
                 }
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction("Details", "Posts", new { slug = newComment.Post.Slug }, "commentSection");
             }
             ViewData["BlogUserId"] = new SelectList(_context.Users, "Id", "Id", comment.BlogUserId);
             ViewData["ModeratorId"] = new SelectList(_context.Users, "Id", "Id", comment.ModeratorId);

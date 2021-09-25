@@ -10,6 +10,8 @@ using BlogProject.Models;
 using BlogProject.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using BlogProject.Enums;
+using X.PagedList;
 
 namespace BlogProject.Controllers
 {
@@ -19,16 +21,31 @@ namespace BlogProject.Controllers
         private readonly ISlugService _slugService;
         private readonly IImageService _imageservice;
         private readonly UserManager<BlogUser> _userManager;
-
-        public PostsController(ApplicationDbContext context, 
-                                ISlugService slugService, 
-                                IImageService imageservice, 
-                                UserManager<BlogUser> userManager)
+        private readonly BlogSearchService _blogSearchService;
+        public PostsController(ApplicationDbContext context,
+                                ISlugService slugService,
+                                IImageService imageservice,
+                                UserManager<BlogUser> userManager, 
+                                BlogSearchService blogSearchService)
         {
             _context = context;
             _slugService = slugService;
             _imageservice = imageservice;
             _userManager = userManager;
+            _blogSearchService = blogSearchService;
+        }
+
+
+        public async Task<IActionResult> SearchIndex(int? page, string searchTerm)
+        {
+            ViewData["SearchTerm"] = searchTerm;
+
+            var pageNumber = page ?? 1;
+            var pageSize = 5;
+
+            var posts = _blogSearchService.Search(searchTerm);
+            return View(await posts.ToPagedListAsync(pageNumber, pageSize));    
+
         }
 
         // GET: Posts
@@ -39,15 +56,23 @@ namespace BlogProject.Controllers
         }
 
         //BlogPostIndex
-        public async Task<IActionResult> BlogPostIndex(int? id)
+        public async Task<IActionResult> BlogPostIndex(int? id, int? page)
         {
             if (id is null)
             {
                 return NotFound();
             }
 
-            var posts = _context.Posts.Where(p => p.BlogId == id).ToList();
-            return View("Index", posts);
+            var pageNumber = page ?? 1;
+            var pageSize = 5;
+
+            //var posts = _context.Posts.Where(p => p.BlogId == id).ToList();
+            var posts = await _context.Posts
+                .Where(p => p.BlogId == id && p.ReadyStatus == ReadyStatus.ProductionReady)
+                .OrderByDescending(p => p.Created)
+                .ToPagedListAsync(pageNumber, pageSize);
+
+            return View(posts);
         }
 
 
@@ -64,6 +89,8 @@ namespace BlogProject.Controllers
                 .Include(p => p.Blog)
                 .Include(p => p.BlogUser)
                 .Include(p => p.Tags)
+                .Include(p => p.Comments)
+                .ThenInclude(c => c.BlogUser)
                 .FirstOrDefaultAsync(m => m.Slug == slug);
 
             if (post == null)
